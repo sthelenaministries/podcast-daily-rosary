@@ -13,7 +13,7 @@ To support this ministry and help us continue providing daily Catholic prayer re
     <language>en-us</language>
     <copyright>© 2024 St Helena Ministries</copyright>
     
-    <atom:link href="https://github.com/sthelenaministries/podcast-daily-rosary/blob/main/podcast.xml" rel="self" type="application/rss+xml"/>
+    <atom:link href="https://sthelenaministries.github.io/podcast-daily-rosary/podcast.xml" rel="self" type="application/rss+xml"/>
     
     <itunes:type>episodic</itunes:type>
     <itunes:author>St Helena Ministries</itunes:author>
@@ -25,7 +25,7 @@ To support this ministry and help us continue providing daily Catholic prayer re
       <itunes:name>St Helena Ministries</itunes:name>
       <itunes:email>divineoffice@sthelenaministries.com</itunes:email>
     </itunes:owner>
-    <itunes:image href="https://github.com/sthelenaministries/podcast-daily-rosary/blob/main/rosary-artwork.png"/>
+    <itunes:image href="https://sthelenaministries.github.io/podcast-daily-rosary/rosary-artwork.png"/>
     <itunes:category text="Religion &amp; Spirituality">
       <itunes:category text="Christianity"/>
     </itunes:category>
