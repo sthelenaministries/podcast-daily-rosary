@@ -51,6 +51,7 @@ def parse_issue_form(body: str) -> dict:
         "mysteries": get("Mysteries (Rosary)"),
         "audio_url": get("Audio URL (Archive.org direct file URL)"),
         "archive_item_id": get("Archive.org item identifier (optional)"),
+        "publish_at": get("Publish at (ISO 8601 with timezone)"),
         "notes": get("Notes for the description (optional)"),
     }
 
@@ -104,6 +105,10 @@ def main():
         print("Issue is missing required fields. Ensure the Issue Form was used.")
         sys.exit(1)
 
+    if not data["publish_at"]:
+        print("Missing publish_at (scheduled release time).")
+        sys.exit(1)
+
     # Create slug + paths
     date = data["episode_date"]
     slug = f"{date}-{slugify(data['mysteries'])}"
@@ -155,6 +160,7 @@ Return ONLY the final description text, no headings, no bullet labels, no metada
         "archive_item_id": data["archive_item_id"],
         "description": description,
         "source_issue": issue_number,
+        "publish_at": data["publish_at"],
         "updated_utc": datetime.now(timezone.utc).isoformat(),
     }
 
