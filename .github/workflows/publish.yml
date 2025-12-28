@@ -1,0 +1,40 @@
+name: Publish RSS (rebuild podcasts.xml)
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Rebuild podcasts.xml from episodes/*
+        run: |
+          python scripts/build_rss.py
+
+      - name: Commit podcasts.xml (if changed)
+        run: |
+          git config user.name "shm-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add podcasts.xml
+          if git diff --cached --quiet; then
+            echo "No RSS changes."
+          else
+            git commit -m "Rebuild podcasts.xml"
+            git push
+          fi
