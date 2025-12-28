@@ -1,0 +1,41 @@
+name: Scheduler (publish due episodes)
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Rebuild podcast.xml from episodes/*
+        run: |
+          python scripts/build_rss.py
+
+      - name: Commit podcast.xml (if changed)
+        run: |
+          git config user.name "shm-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add podcast.xml
+          if git diff --cached --quiet; then
+            echo "No RSS changes."
+          else
+            git commit -m "Scheduler: update podcast.xml"
+            git push
+          fi
