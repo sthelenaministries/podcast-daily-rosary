@@ -1,7 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" 
-     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
-     xmlns:atom="http://www.w3.org/2005/Atom">
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
   <channel>
     <title>St. Helena Ministries - Daily Rosary</title>
     <description>Pray the Holy Rosary each day with St. Helena Ministries through a calm, reverent daily Rosary podcast rooted in traditional Catholic prayer. Each episode follows the mysteries of the Rosary for the day of the week, inviting you to meditate on the life of Christ through the heart of His Blessed Mother.
@@ -13,7 +11,7 @@ To support this ministry and help us continue providing daily Catholic prayer re
     <language>en-us</language>
     <copyright>© 2024 St Helena Ministries</copyright>
     
-    <atom:link href="https://sthelenaministries.github.io/podcast-daily-rosary/podcast.xml" rel="self" type="application/rss+xml"/>
+    <atom:link href="https://sthelenaministries.github.io/podcast-daily-rosary/podcast.xml" rel="self" type="application/rss+xml" />
     
     <itunes:type>episodic</itunes:type>
     <itunes:author>St Helena Ministries</itunes:author>
@@ -25,23 +23,14 @@ To support this ministry and help us continue providing daily Catholic prayer re
       <itunes:name>St Helena Ministries</itunes:name>
       <itunes:email>divineoffice@sthelenaministries.com</itunes:email>
     </itunes:owner>
-    <itunes:image href="https://sthelenaministries.github.io/podcast-daily-rosary/rosary-artwork.png"/>
+    <itunes:image href="https://sthelenaministries.github.io/podcast-daily-rosary/rosary-artwork.png" />
     <itunes:category text="Religion &amp; Spirituality">
-      <itunes:category text="Christianity"/>
+      <itunes:category text="Christianity" />
     </itunes:category>
     <itunes:explicit>no</itunes:explicit>
     
-    <!-- Episodes will be added here by Node-RED automation -->
-    <!-- Each episode follows this format:
-    <item>
-      <title>Episode Title</title>
-      <description>Episode description with AI attribution footer</description>
-      <enclosure url="https://archive.org/download/..." type="audio/mpeg" length="12345678"/>
-      <pubDate>Mon, 23 Dec 2024 05:00:00 GMT</pubDate>
-      <itunes:duration>15:30</itunes:duration>
-      <guid isPermaLink="false">unique-episode-id</guid>
-    </item>
-    -->
+    
+    
     
   </channel>
 </rss>
