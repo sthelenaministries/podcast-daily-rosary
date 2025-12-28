@@ -1,0 +1,68 @@
+name: Daily Rosary Episode
+description: Queue a new Daily Rosary episode for drafting and publishing.
+title: "Daily Rosary — YYYY-MM-DD — <Mysteries>"
+labels:
+  - "status: queued"
+body:
+  - type: input
+    id: episode_date
+    attributes:
+      label: Episode date (YYYY-MM-DD)
+      placeholder: "2025-12-26"
+    validations:
+      required: true
+
+  - type: input
+    id: episode_title
+    attributes:
+      label: Episode title
+      placeholder: "Daily Rosary — Joyful Mysteries"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mysteries
+    attributes:
+      label: Mysteries (Rosary)
+      options:
+        - Joyful Mysteries
+        - Sorrowful Mysteries
+        - Glorious Mysteries
+        - Luminous Mysteries
+    validations:
+      required: true
+
+  - type: input
+    id: audio_url
+    attributes:
+      label: Audio URL (Archive.org direct file URL)
+      description: If you don’t have it yet, leave blank; you can add later in the PR.
+      placeholder: "https://archive.org/download/<item>/<file>.mp3"
+    validations:
+      required: false
+
+  - type: input
+    id: archive_item_id
+    attributes:
+      label: Archive.org item identifier (optional)
+      placeholder: "st-helena-daily-rosary-2025-12-26"
+    validations:
+      required: false
+
+  - type: input
+    id: publish_at
+    attributes:
+      label: Publish at (ISO 8601 with timezone)
+      description: Example for Louisville time: 2026-01-03T05:00:00-05:00
+      placeholder: "2026-01-03T05:00:00-05:00"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes for the description (optional)
+      description: Any special intentions, context, or reminders for the episode description.
+      placeholder: "Optional notes..."
+    validations:
+      required: false
