@@ -53,7 +53,7 @@ body:
     id: publish_at
     attributes:
       label: Publish at (ISO 8601 with timezone)
-      description: Example for Louisville time: 2026-01-03T05:00:00-05:00
+      description: Example for Louisville time 2026-01-03T05:00:00-05:00
       placeholder: "2026-01-03T05:00:00-05:00"
     validations:
       required: true
