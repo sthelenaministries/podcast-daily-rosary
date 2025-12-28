@@ -61,20 +61,39 @@ def slugify(s: str) -> str:
     s = re.sub(r"-+", "-", s).strip("-")
     return s
 
-def openai_chat_completion(api_key: str, prompt: str) -> str:
+def openai_chat_completion(
+    api_key: str,
+    prompt: str,
+    *,
+    model: str = "gpt-4.1-mini",
+    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
+    temperature: float = 0.4,
+    max_output_tokens: int = 600,
+    timeout_seconds: int = 60,
+) -> str:
     """
-    Uses /v1/chat/completions for broad compatibility.
+    Uses OpenAI's Responses API (recommended for new projects).
+    Returns the model's plain text output.
+
+    Docs:
+    - Responses API reference
+    - Migration guide from Chat Completions to Responses
     """
+
     payload = {
-        "model": "gpt-4.1-mini",
-        "temperature": 0.4,
-        "messages": [
-            {"role": "system", "content": "You are a careful Catholic ministry copywriter. Follow all rules exactly."},
-            {"role": "user", "content": prompt},
+        "model": model,
+        # Responses uses "input" with role/content blocks.
+        "input": [
+            {"role": "system", "content": [{"type": "input_text", "text": system}]},
+            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
         ],
+        # Keep generation bounded/predictable
+        "max_output_tokens": max_output_tokens,
+        "temperature": temperature,
     }
+
     req = Request(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.openai.com/v1/responses",
         method="POST",
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -83,9 +102,32 @@ def openai_chat_completion(api_key: str, prompt: str) -> str:
         },
         data=json.dumps(payload).encode("utf-8"),
     )
-    with urlopen(req) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    return data["choices"][0]["message"]["content"].strip()
+
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI HTTPError {e.code}: {detail}") from e
+    except URLError as e:
+        raise RuntimeError(f"OpenAI URLError: {e.reason}") from e
+
+    # Preferred: SDKs/documentation often expose `output_text` as the simplest way to get text.
+    # If present, use it.
+    if isinstance(data, dict) and data.get("output_text"):
+        return data["output_text"].strip()
+
+    # Fallback: walk the response structure to extract any output_text blocks
+    chunks: list[str] = []
+    for item in data.get("output", []) if isinstance(data, dict) else []:
+        for part in item.get("content", []):
+            if part.get("type") in ("output_text", "text") and part.get("text"):
+                chunks.append(part["text"])
+
+    text = "\n".join(chunks).strip()
+    if not text:
+        raise RuntimeError(f"OpenAI response missing text output. Keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+    return text
 
 def main():
     token = os.environ["GH_TOKEN"]
