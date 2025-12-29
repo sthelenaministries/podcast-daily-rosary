@@ -70,11 +70,11 @@ def openai_chat_completion(oapi_key: str, prompt: str) -> str:
     Returns the model's plain text output.
     """
 
-    model: str = "gpt-4.1-mini",
-    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
-    temperature: float = 0.4,
-    max_output_tokens: int = 600,
-    timeout_seconds: int = 60,
+    model: str = "gpt-4.1-mini"
+    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly."
+    temperature: float = 0.4
+    max_output_tokens: int = 600
+    timeout_seconds: int = 60
     client = OpenAI(api_key=oapi_key, timeout=httpx.Timeout(connect=10.0, read=float(timeout_seconds),write=30.0,pool=10.0))
 
     try:
@@ -84,8 +84,8 @@ def openai_chat_completion(oapi_key: str, prompt: str) -> str:
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ]
-#            temperature=temperature,
-#            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
         )
         # The SDK exposes a convenience accessor for the concatenated text.
         return (resp.output_text or "").strip() or _extract_text_fallback(resp)
