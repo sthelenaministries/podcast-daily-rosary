@@ -126,6 +126,7 @@ def main():
     issue_number = int(os.environ["ISSUE_NUMBER"])
     repo = os.environ["REPO"]  # owner/name
 
+    print("OPENAPIKEY present:",bool(k), "len:",len(k))
     # Fetch issue
     issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
     issue_body = issue.get("body") or ""
