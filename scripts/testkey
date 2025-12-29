@@ -1,0 +1,3 @@
+import os
+k = os.getenv("OPENAI_API_KEY", "")
+print("OPENAI_API_KEY present:", bool(k), "len:", len(k))
