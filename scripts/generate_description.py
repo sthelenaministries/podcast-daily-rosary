@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+import httpx
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 from openai import OpenAI
@@ -74,7 +75,7 @@ def openai_chat_completion(oapi_key: str, prompt: str) -> str:
     temperature: float = 0.4,
     max_output_tokens: int = 600,
     timeout_seconds: int = 60,
-    client = OpenAI(api_key=oapi_key, timeout=timeout_seconds)
+    client = OpenAI(api_key=oapi_key, timeout=https.Timeout(timeout_seconds))
 
     try:
         resp = client.responses.create(
