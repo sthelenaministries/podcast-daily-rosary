@@ -3,6 +3,8 @@ import json
 import os
 from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
+from urllib.request import urlopen
+from urllib.parse import urlparse, unquote
 
 RSS_PATH = "podcast.xml"
 EP_DIR = "episodes"
@@ -69,6 +71,42 @@ def ensure_itunes_child_text(parent: ET.Element, local_tag: str, text: str) -> E
     child.text = text
     return child
 
+def get_archive_file_size(item_id: str, filename: str) -> int | None:
+    """
+    Returns file size in bytes for a given Archive.org item + filename.
+    """
+    url = f"https://archive.org/metadata/{item_id}"
+    with urlopen(url) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+
+    for f in data.get("files", []):
+        if f.get("name") == filename and "size" in f:
+            try:
+                return int(f["size"])
+            except ValueError:
+                return None
+    return None
+
+def filename_from_audio_url(audio_url: str) -> str | None:
+    """
+    Extracts the filename from an audio URL.
+    Handles URL encoding safely.
+    """
+    if not audio_url:
+        return None
+
+    parsed = urlparse(audio_url)
+    if not parsed.path:
+        return None
+
+    # basename gives last path segment
+    name = os.path.basename(parsed.path)
+    if not name:
+        return None
+
+    # Decode %20, etc.
+    return unquote(name)
+    
 def main():
     now_utc = datetime.now(timezone.utc)
 
@@ -100,8 +138,13 @@ def main():
 
         # enclosure
         enc_attrib = {"url": str(ep["audio_url"]).strip(), "type": "audio/mpeg"}
-        if ep.get("length"):
-            enc_attrib["length"] = str(ep["length"]).strip()
+        #if ep.get("length"):
+        #    enc_attrib["length"] = str(ep["length"]).strip()
+        filename = filename_from_audio_url(str(ep["audio_url"]).strip())
+        if filename:
+            size = get_archive_file_size("sthelena-daily-rosary", filename)
+            if size:
+                enc_attrib["length"] = str(size)
         ET.SubElement(item, "enclosure", attrib=enc_attrib)
 
         ensure_child_text(item, "pubDate", pubdate)
