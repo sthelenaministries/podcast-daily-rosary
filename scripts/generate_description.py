@@ -5,6 +5,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
+from __future__ import annotations
+from openai import OpenAI
+from openai import APIConnectionError, APIError, RateLimitError, APITimeoutError
 
 GITHUB_API = "https://api.github.com"
 
@@ -62,8 +65,21 @@ def slugify(s: str) -> str:
     return s
 
 def openai_chat_completion(
+    *,
+    data: dict,
     api_key: str = OPENAI_API_KEY,
-        prompt = f"""
+    model: str = "gpt-4.1-mini",
+    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
+    temperature: float = 0.4,
+    max_output_tokens: int = 600,
+    timeout_seconds: int = 60,
+) -> str:
+    """
+    Uses the OpenAI Python SDK (Responses API).
+    Returns the model's plain text output.
+    """
+
+    prompt = f"""
 TASK:
 Generate a single, unified, SEO-optimized description for an episode of the “St. Helena Ministries – Daily Rosary” podcast.
 
@@ -92,71 +108,51 @@ LINKING / BRANDING:
 - End with a short, peaceful closing line (one sentence).
 
 Return ONLY the final description text, no headings, no bullet labels, no metadata.
-""".strip(),
-    *,
-    model: str = "gpt-4.1-mini",
-    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
-    temperature: float = 0.4,
-    max_output_tokens: int = 600,
-    timeout_seconds: int = 60,
-) -> str:
-    """
-    Uses OpenAI's Responses API (recommended for new projects).
-    Returns the model's plain text output.
+""".strip()
 
-    Docs:
-    - Responses API reference
-    - Migration guide from Chat Completions to Responses
-    """
-
-    payload = {
-        "model": model,
-        # Responses uses "input" with role/content blocks.
-        "input": [
-            {"role": "system", "content": [{"type": "input_text", "text": system}]},
-            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
-        ],
-        # Keep generation bounded/predictable
-        "max_output_tokens": max_output_tokens,
-        "temperature": temperature,
-    }
-
-    req = Request(
-        "https://api.openai.com/v1/responses",
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "shm-daily-rosary-bot",
-        },
-        data=json.dumps(payload).encode("utf-8"),
-    )
+    client = OpenAI(api_key=api_key, timeout=timeout_seconds)
 
     try:
-        with urlopen(req, timeout=timeout_seconds) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except HTTPError as e:
-        detail = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI HTTPError {e.code}: {detail}") from e
-    except URLError as e:
-        raise RuntimeError(f"OpenAI URLError: {e.reason}") from e
+        resp = client.responses.create(
+            model=model,
+            input=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+        # The SDK exposes a convenience accessor for the concatenated text.
+        return (resp.output_text or "").strip() or _extract_text_fallback(resp)
 
-    # Preferred: SDKs/documentation often expose `output_text` as the simplest way to get text.
-    # If present, use it.
-    if isinstance(data, dict) and data.get("output_text"):
-        return data["output_text"].strip()
+    except APITimeoutError as e:
+        raise RuntimeError(f"OpenAI timeout after {timeout_seconds}s") from e
+    except RateLimitError as e:
+        raise RuntimeError(f"OpenAI rate limited: {e}") from e
+    except APIConnectionError as e:
+        raise RuntimeError(f"OpenAI connection error: {e}") from e
+    except APIError as e:
+        # Includes 4xx/5xx API responses surfaced by the SDK
+        raise RuntimeError(f"OpenAI API error: {e}") from e
 
-    # Fallback: walk the response structure to extract any output_text blocks
+
+def _extract_text_fallback(resp) -> str:
+    """
+    Fallback extractor in case output_text is empty/unavailable.
+    Walks response.output[*].content[*] for output_text/text blocks.
+    """
     chunks: list[str] = []
-    for item in data.get("output", []) if isinstance(data, dict) else []:
-        for part in item.get("content", []):
-            if part.get("type") in ("output_text", "text") and part.get("text"):
-                chunks.append(part["text"])
+    for item in getattr(resp, "output", []) or []:
+        for part in getattr(item, "content", []) or []:
+            ptype = getattr(part, "type", None)
+            text = getattr(part, "text", None)
+            if ptype in ("output_text", "text") and text:
+                chunks.append(text)
 
-    text = "\n".join(chunks).strip()
-    if not text:
-        raise RuntimeError(f"OpenAI response missing text output. Keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
-    return text
+    text_out = "\n".join(chunks).strip()
+    if not text_out:
+        raise RuntimeError("OpenAI response missing text output.")
+    return text_out
 
 def main():
     token = os.environ["GH_TOKEN"]
