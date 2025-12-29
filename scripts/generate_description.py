@@ -75,7 +75,7 @@ def openai_chat_completion(oapi_key: str, prompt: str) -> str:
     temperature: float = 0.4,
     max_output_tokens: int = 600,
     timeout_seconds: int = 60,
-    client = OpenAI(api_key=oapi_key, timeout=httpx.Timeout(timeout_seconds))
+    client = OpenAI(api_key=oapi_key, timeout=httpx.Timeout(connect=10.0, read=float(timeout_seconds),write=30.0,pool=10.0))
 
     try:
         resp = client.responses.create(
