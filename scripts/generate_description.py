@@ -69,7 +69,7 @@ def openai_chat_completion(api_key: str, prompt: str) -> str:
     Uses the OpenAI Python SDK (Responses API).
     Returns the model's plain text output.
     """
-    data: dict,
+
     api_key: str = os.environ["OPENAI_API_KEY"],
     model: str = "gpt-4.1-mini",
     system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
