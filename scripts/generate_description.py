@@ -83,7 +83,7 @@ def openai_chat_completion(oapi_key: str, prompt: str) -> str:
             input=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
-            ]
+            ],
             temperature=temperature,
             max_output_tokens=max_output_tokens,
         )
