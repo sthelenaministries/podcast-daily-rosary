@@ -63,19 +63,18 @@ def slugify(s: str) -> str:
     s = re.sub(r"-+", "-", s).strip("-")
     return s
 
-def openai_chat_completion(api_key: str, prompt: str) -> str:
+def openai_chat_completion(oapi_key: str, prompt: str) -> str:
     """
     Uses the OpenAI Python SDK (Responses API).
     Returns the model's plain text output.
     """
 
-    api_key: str = os.environ["OPENAI_API_KEY"],
     model: str = "gpt-4.1-mini",
     system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
     temperature: float = 0.4,
     max_output_tokens: int = 600,
     timeout_seconds: int = 60,
-    client = OpenAI(api_key=api_key, timeout=timeout_seconds)
+    client = OpenAI(api_key=oapi_key, timeout=timeout_seconds)
 
     try:
         resp = client.responses.create(
@@ -83,9 +82,9 @@ def openai_chat_completion(api_key: str, prompt: str) -> str:
             input=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
-            ],
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
+            ]
+#            temperature=temperature,
+#            max_output_tokens=max_output_tokens,
         )
         # The SDK exposes a convenience accessor for the concatenated text.
         return (resp.output_text or "").strip() or _extract_text_fallback(resp)
