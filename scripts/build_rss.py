@@ -43,6 +43,13 @@ def parse_iso8601(dt_str: str):
 def rfc2822_from_dt(dt_utc: datetime) -> str:
     return dt_utc.strftime("%a, %d %b %Y %H:%M:%S +0000")
 
+def episode_link(ep: dict) -> str:
+    # Prefer explicit episode page URL if provided
+    if ep.get("episode_url"):
+        return str(ep["episode_url"]).strip()
+    # Fallback: use the direct audio URL
+    return str(ep["audio_url"]).strip()
+    
 def is_publishable(ep: dict, now_utc: datetime) -> bool:
     dt = parse_iso8601(ep.get("publish_at", ""))
     if dt is None:
@@ -89,6 +96,7 @@ def main():
 
         ensure_child_text(item, "title", str(ep["title"]).strip())
         ensure_child_text(item, "description", str(ep["description"]).strip())
+        ensure_child_text(item, "link", episode_link(ep))
 
         # enclosure
         enc_attrib = {"url": str(ep["audio_url"]).strip(), "type": "audio/mpeg"}
