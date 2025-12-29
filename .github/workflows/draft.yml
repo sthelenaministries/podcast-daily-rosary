@@ -2,7 +2,7 @@ name: Draft episode description
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
 
 permissions:
   contents: write
