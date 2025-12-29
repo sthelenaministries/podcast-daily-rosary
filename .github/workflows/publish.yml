@@ -23,11 +23,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Rebuild podcasts.xml from episodes/*
+      - name: Rebuild podcast.xml from episodes/*
         run: |
           python scripts/build_rss.py
 
-      - name: Commit podcasts.xml (if changed)
+      - name: Commit podcast.xml (if changed)
         run: |
           git config user.name "shm-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -35,6 +35,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No RSS changes."
           else
-            git commit -m "Rebuild podcasts.xml"
+            git commit -m "Rebuild podcast.xml"
             git push
           fi
