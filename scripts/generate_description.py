@@ -67,7 +67,7 @@ def slugify(s: str) -> str:
 def openai_chat_completion(
     *,
     data: dict,
-    api_key: str = OPENAI_API_KEY,
+    api_key: str = os.environ["OPENAI_API_KEY"],
     model: str = "gpt-4.1-mini",
     system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly.",
     temperature: float = 0.4,
