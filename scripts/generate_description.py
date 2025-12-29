@@ -64,8 +64,11 @@ def slugify(s: str) -> str:
     s = re.sub(r"-+", "-", s).strip("-")
     return s
 
-def openai_chat_completion(
-    *,
+def openai_chat_completion(api_key: str, prompt: str) -> str:
+    """
+    Uses the OpenAI Python SDK (Responses API).
+    Returns the model's plain text output.
+    """
     data: dict,
     api_key: str = os.environ["OPENAI_API_KEY"],
     model: str = "gpt-4.1-mini",
@@ -73,43 +76,6 @@ def openai_chat_completion(
     temperature: float = 0.4,
     max_output_tokens: int = 600,
     timeout_seconds: int = 60,
-) -> str:
-    """
-    Uses the OpenAI Python SDK (Responses API).
-    Returns the model's plain text output.
-    """
-
-    prompt = f"""
-TASK:
-Generate a single, unified, SEO-optimized description for an episode of the “St. Helena Ministries – Daily Rosary” podcast.
-
-HARD RULES (must follow):
-- Do NOT paraphrase, rewrite, summarize, or modify any prayers or Scripture.
-- Do NOT quote Scripture.
-- You MAY reference Scripture only by book, chapter, and verse (no quotations).
-- Do NOT invent theological explanations, promises, or spiritual outcomes.
-- Tone: pastoral, reverent, calm, invitational. No hype, no sales language, no emotional manipulation.
-- Output must be suitable for human review before publication.
-
-MUST INCLUDE (in one unified description):
-1) Reverent overview of the Daily Rosary episode
-2) Gentle, non-commercial “Support This Ministry” call-to-action
-3) Brief cross-promotion of the Divine Office podcast
-
-EPISODE CONTEXT:
-- Episode date: {data['episode_date']}
-- Episode title: {data['episode_title']}
-- Mysteries: {data['mysteries']}
-- Notes: {data['notes'] or "(none)"}
-
-LINKING / BRANDING:
-- If you include links, use placeholder text only (no raw URLs). Example: “Visit our website” or “Support this ministry”.
-- Keep it concise enough for podcast platforms (roughly 120–220 words).
-- End with a short, peaceful closing line (one sentence).
-
-Return ONLY the final description text, no headings, no bullet labels, no metadata.
-""".strip()
-
     client = OpenAI(api_key=api_key, timeout=timeout_seconds)
 
     try:
