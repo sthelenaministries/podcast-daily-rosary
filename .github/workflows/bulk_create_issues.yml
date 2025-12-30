@@ -1,0 +1,62 @@
+name: Bulk create Daily Rosary issues from CSV
+
+on:
+  workflow_dispatch:
+    inputs:
+      csv_path:
+        description: "Path to CSV in repo"
+        required: true
+        default: "bulk_episodes.csv"
+      archive_csv_after:
+        description: "Move CSV into bulk/processed/ after run"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  bulk_create:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create issues from CSV (with duplicate detection)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CSV_PATH: ${{ inputs.csv_path }}
+          QUEUE_LABEL: "status: queued"
+        run: |
+          python scripts/bulk_create_issues.py
+
+      - name: Archive CSV to bulk/processed/ (optional)
+        if: ${{ inputs.archive_csv_after == 'true' }}
+        run: |
+          mkdir -p bulk/processed
+          ts=$(date -u +"%Y%m%dT%H%M%SZ")
+          base=$(basename "${{ inputs.csv_path }}")
+          mv "${{ inputs.csv_path }}" "bulk/processed/${ts}__${base}"
+
+      - name: Commit archived CSV move (if changed)
+        if: ${{ inputs.archive_csv_after == 'true' }}
+        run: |
+          git config user.name "shm-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Archive bulk CSV after issue creation"
+            git push
+          fi
