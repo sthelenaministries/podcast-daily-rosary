@@ -156,6 +156,7 @@ def main():
         guid_el = ET.SubElement(item, "guid", attrib={"isPermaLink": "false"})
         guid_el.text = str(guid_value).strip()
 
+    ET.indent(tree, space="  ",level=0)
     tree.write(RSS_PATH, encoding="utf-8", xml_declaration=True)
 
 if __name__ == "__main__":
