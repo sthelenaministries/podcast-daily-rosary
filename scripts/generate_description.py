@@ -64,6 +64,27 @@ def slugify(s: str) -> str:
     s = re.sub(r"-+", "-", s).strip("-")
     return s
 
+def weekday_from_date(yyyy_mm_dd: str) -> str:
+    """
+    Returns weekday name (e.g. 'Wednesday') from YYYY-MM-DD.
+    """
+    dt = datetime.strptime(yyyy_mm_dd, "%Y-%m-%d")
+    return dt.strftime("%A")
+
+def build_episode_url(episode_date: str, mysteries: str) -> str:
+    """
+    Builds canonical episode URL slug.
+    """
+    weekday = weekday_from_date(episode_date)
+    mysteries_slug = slugify(mysteries)
+
+    return (
+        f"https://sthelenaministries.com/{episode_date}-rosary-"
+        f"{slugify(weekday)}-"
+        f"the-{mysteries_slug}-"
+        f"daily-catholic-prayer"
+    )
+
 def openai_chat_completion(oapi_key: str, prompt: str) -> str:
     """
     Uses the OpenAI Python SDK (Responses API).
@@ -181,11 +202,16 @@ Return ONLY the final description text, no headings, no bullet labels, no metada
 """.strip()
 
     description = openai_chat_completion(openai_key, prompt)
-
+    episode_url = build_episode_url(
+        data["episode_date"],
+        data["mysteries"]
+    )
+    
     # Prepare episode JSON (canonical store)
     episode = {
         "slug": slug,
         "show": "daily-rosary",
+        "episode_url": episode_url
         "episode_date": data["episode_date"],
         "title": data["episode_title"],
         "mysteries": data["mysteries"],
