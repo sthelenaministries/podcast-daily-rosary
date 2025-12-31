@@ -8,7 +8,7 @@ from urllib.parse import urlparse, unquote
 
 RSS_PATH = "podcast.xml"
 EP_DIR = "episodes"
-
+MAX_ITEMS = 500
 NS = {
     "itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
     "atom": "http://www.w3.org/2005/Atom",
@@ -123,10 +123,14 @@ def main():
 
     episodes = load_episodes()
 
-    for ep in episodes:
-        if not is_publishable(ep, now_utc):
-            continue
-
+    publishable = [
+        ep for ep in episodes
+        if is_publishable(ep, now_utc)
+    ]
+    if MAX_ITEMS and len(publishable) > MAX_ITEMS:
+            publishable = publishable [:MAX_ITEMS]
+    
+    for ep in publishable:
         publish_dt = parse_iso8601(ep["publish_at"])
         pubdate = rfc2822_from_dt(publish_dt)
 
