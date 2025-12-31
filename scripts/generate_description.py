@@ -211,7 +211,7 @@ Return ONLY the final description text, no headings, no bullet labels, no metada
     episode = {
         "slug": slug,
         "show": "daily-rosary",
-        "episode_url": episode_url
+        "episode_url": episode_url,
         "episode_date": data["episode_date"],
         "title": data["episode_title"],
         "mysteries": data["mysteries"],
