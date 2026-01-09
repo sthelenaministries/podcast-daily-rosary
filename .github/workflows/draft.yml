@@ -9,6 +9,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: draft-descriptions
+  cancel-in-progress: false
+  
 jobs:
   draft:
     if: >
