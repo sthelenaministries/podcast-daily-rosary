@@ -16,7 +16,9 @@ concurrency:
 jobs:
   draft:
     if: >
-      contains(github.event.issue.labels.*.name, 'status: queued')
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'status: queued'
+
     runs-on: ubuntu-latest
 
     steps:
