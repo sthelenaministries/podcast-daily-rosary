@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           CSV_PATH: ${{ inputs.csv_path }}
-          QUEUE_LABEL: "status: queued"
+          QUEUE_LABEL: "status: staged"
         run: |
           python scripts/bulk_create_issues.py
 
