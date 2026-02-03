@@ -115,7 +115,7 @@ jobs:
         run: |
           python scripts/generate_description.py
 
-      - name: Mark complete (processing → needs review)
+      - name: Mark complete (processing → needs-review)
         if: steps.pick.outputs.issue_number != ''
         uses: actions/github-script@v7
         with:
@@ -133,12 +133,12 @@ jobs:
               });
             } catch (_) {}
 
-            // Add needs review label
+            // Add needs-review label
             await github.rest.issues.addLabels({
               owner,
               repo,
               issue_number,
-              labels: ["status: needs review"]
+              labels: ["status: needs-review"]
             });
 
       - name: Dispatch next run if queue remains
