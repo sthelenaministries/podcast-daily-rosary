@@ -1,32 +1,11 @@
-import glob
 import json
 import os
-from datetime import datetime, timezone
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 GITHUB_API = "https://api.github.com"
+PUBLISHED_ISSUES_PATH = ".published_issues.json"
 
-def parse_iso8601(dt_str: str):
-    if not dt_str or not dt_str.strip():
-        return None
-    s = dt_str.strip()
-    if s.endswith("Z"):
-        s = s[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-def is_publishable(ep: dict, now_utc: datetime) -> bool:
-    dt = parse_iso8601(ep.get("publish_at", ""))
-    if dt is None:
-        return False
-    if not (ep.get("audio_url") and ep.get("title") and ep.get("description")):
-        return False
-    return now_utc >= dt
 
 def gh_api(method: str, url: str, token: str, data=None):
     headers = {
@@ -38,46 +17,60 @@ def gh_api(method: str, url: str, token: str, data=None):
     if data is not None:
         body = json.dumps(data).encode("utf-8")
         headers["Content-Type"] = "application/json"
+
     req = Request(url, method=method, headers=headers, data=body)
-    with urlopen(req) as resp:
-        raw = resp.read().decode("utf-8")
-        return json.loads(raw) if raw else {}
+
+    try:
+        with urlopen(req) as resp:
+            raw = resp.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"GitHub API {method} {url} failed: {e.code} {detail}") from e
+
+
+def load_published_issue_numbers() -> list[int]:
+    if not os.path.exists(PUBLISHED_ISSUES_PATH):
+        return []
+
+    with open(PUBLISHED_ISSUES_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, list):
+        return []
+
+    result = []
+    for value in data:
+        if isinstance(value, int):
+            result.append(value)
+        elif isinstance(value, str) and value.strip().isdigit():
+            result.append(int(value.strip()))
+
+    return sorted(set(result))
+
 
 def main():
     token = os.environ["GH_TOKEN"]
-    repo = os.environ["REPO"]  # owner/name
+    repo = os.environ["REPO"]
 
-    now_utc = datetime.now(timezone.utc)
-
-    episode_files = glob.glob("episodes/*.json")
-    if not episode_files:
-        print("No episodes found.")
+    issue_numbers = load_published_issue_numbers()
+    if not issue_numbers:
+        print("No newly published issues to update.")
         return
 
-    for p in episode_files:
-        with open(p, "r", encoding="utf-8") as f:
-            ep = json.load(f)
-
-        if not is_publishable(ep, now_utc):
-            continue
-
-        issue_number = ep.get("source_issue")
-        if not issue_number:
-            continue
-
-        # Get current issue labels
+    for issue_number in issue_numbers:
         issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
         labels = [l["name"] for l in issue.get("labels", [])]
 
-        # Ensure status: published exists
-        if "status: published" not in labels:
-            labels.append("status: published")
-
-        # Optional cleanup: remove needs-review once published
-        labels = [x for x in labels if x != "status: needs-review"]
+        labels = [x for x in labels if x not in ("status: approved", "status: published")]
+        if "status: complete" not in labels:
+            labels.append("status: complete")
 
         gh_api("PUT", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}/labels", token, data=labels)
-        print(f"Issue #{issue_number}: labeled as status: published")
+        gh_api("PATCH", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token, data={"state": "closed"})
+
+        print(f"Issue #{issue_number}: closed and labeled status: complete")
+
 
 if __name__ == "__main__":
     main()
