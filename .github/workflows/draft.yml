@@ -1,28 +1,22 @@
-name: Draft episode description
+name: Create episode from queued issue
 
 on:
   issues:
     types: [labeled]
   workflow_dispatch:
   schedule:
-    - cron: "*/10 * * * *" # safety net in case an event is missed
+    - cron: "*/10 * * * *"
 
 permissions:
   contents: write
-  pull-requests: write
   issues: write
-  actions: write
 
 concurrency:
-  group: draft-descriptions
+  group: create-episodes
   cancel-in-progress: false
 
 jobs:
-  draft:
-    # Run when:
-    # - issue gets labeled "status: queued"
-    # - manual dispatch
-    # - scheduled run
+  create-episode:
     if: |
       github.event_name != 'issues' ||
       (github.event.action == 'labeled' && github.event.label.name == 'status: queued')
@@ -32,6 +26,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Select oldest queued issue
         id: pick
@@ -67,32 +64,6 @@ jobs:
         if: steps.pick.outputs.issue_number == ''
         run: echo "Queue empty."
 
-      - name: Claim issue (queued → processing)
-        if: steps.pick.outputs.issue_number != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const issue_number = Number("${{ steps.pick.outputs.issue_number }}");
-
-            // Remove queued label (ignore if already removed)
-            try {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number,
-                name: "status: queued"
-              });
-            } catch (_) {}
-
-            // Add processing label
-            await github.rest.issues.addLabels({
-              owner,
-              repo,
-              issue_number,
-              labels: ["status: processing"]
-            });
-
       - name: Setup Python
         if: steps.pick.outputs.issue_number != ''
         uses: actions/setup-python@v5
@@ -103,69 +74,12 @@ jobs:
         if: steps.pick.outputs.issue_number != ''
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
 
-      - name: Draft description + create PR
+      - name: Create episode and approve issue
         if: steps.pick.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ISSUE_NUMBER: ${{ steps.pick.outputs.issue_number }}
           REPO: ${{ github.repository }}
         run: |
           python scripts/generate_description.py
-
-      - name: Mark complete (processing → needs-review)
-        if: steps.pick.outputs.issue_number != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const issue_number = Number("${{ steps.pick.outputs.issue_number }}");
-
-            // Remove processing label (ignore if missing)
-            try {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number,
-                name: "status: processing"
-              });
-            } catch (_) {}
-
-            // Add needs-review label
-            await github.rest.issues.addLabels({
-              owner,
-              repo,
-              issue_number,
-              labels: ["status: needs-review"]
-            });
-
-      - name: Dispatch next run if queue remains
-        if: steps.pick.outputs.issue_number != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-
-            const remaining = await github.paginate(
-              github.rest.issues.listForRepo,
-              {
-                owner,
-                repo,
-                labels: "status: queued",
-                state: "open",
-                per_page: 1
-              }
-            );
-
-            if (remaining.length) {
-              core.info("Queue not empty — dispatching next run...");
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id: "draft.yml",  // <-- set this to your workflow filename
-                ref: context.ref
-              });
-            } else {
-              core.info("Queue drained.");
