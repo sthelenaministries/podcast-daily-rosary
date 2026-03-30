@@ -5,6 +5,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 GITHUB_API = "https://api.github.com"
 
@@ -19,14 +20,24 @@ def gh_api(method: str, url: str, token: str, data=None):
     if data is not None:
         body = json.dumps(data).encode("utf-8")
         headers["Content-Type"] = "application/json"
+
     req = Request(url, method=method, headers=headers, data=body)
-    with urlopen(req) as resp:
-        raw = resp.read().decode("utf-8")
-        return json.loads(raw) if raw else {}
+
+    try:
+        with urlopen(req) as resp:
+            raw = resp.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"GitHub API {method} {url} failed: {e.code} {detail}") from e
 
 
 def run(cmd: str):
     subprocess.check_call(cmd, shell=True)
+
+
+def run_capture(cmd: str) -> str:
+    return subprocess.check_output(cmd, shell=True, text=True).strip()
 
 
 def parse_issue_form(body: str) -> dict:
@@ -94,6 +105,10 @@ def build_episode_url(episode_date: str, mysteries: str) -> str:
     )
 
 
+def issue_has_label(issue: dict, label_name: str) -> bool:
+    return any(label.get("name") == label_name for label in issue.get("labels", []))
+
+
 def replace_issue_labels(token: str, repo: str, issue_number: int, remove_label: str, add_label: str):
     issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
     labels = [l["name"] for l in issue.get("labels", [])]
@@ -105,14 +120,35 @@ def replace_issue_labels(token: str, repo: str, issue_number: int, remove_label:
     gh_api("PUT", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}/labels", token, data=new_labels)
 
 
+def ensure_git_clean_main():
+    run('git config user.name "shm-bot"')
+    run('git config user.email "actions@users.noreply.github.com"')
+    run("git fetch origin main")
+    run("git checkout main")
+    run("git reset --hard origin/main")
+
+
+def git_has_changes(path: str) -> bool:
+    status = run_capture(f"git status --porcelain -- {path}")
+    return bool(status)
+
+
 def main():
     token = os.environ["GH_TOKEN"]
     issue_number = int(os.environ["ISSUE_NUMBER"])
     repo = os.environ["REPO"]
 
     issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
-    issue_body = issue.get("body") or ""
 
+    if issue.get("state") != "open":
+        print(f"Issue #{issue_number} is not open. Exiting.")
+        return
+
+    if not issue_has_label(issue, "status: queued"):
+        print(f"Issue #{issue_number} is not labeled status: queued. Exiting.")
+        return
+
+    issue_body = issue.get("body") or ""
     data = parse_issue_form(issue_body)
 
     if not data["episode_date"] or not data["episode_title"] or not data["mysteries"]:
@@ -145,15 +181,35 @@ def main():
         "updated_utc": datetime.now(timezone.utc).isoformat(),
     }
 
+    ensure_git_clean_main()
     os.makedirs("episodes", exist_ok=True)
+
+    if os.path.exists(episode_path):
+        print(f"{episode_path} already exists. Marking issue approved and exiting.")
+        replace_issue_labels(
+            token=token,
+            repo=repo,
+            issue_number=issue_number,
+            remove_label="status: queued",
+            add_label="status: approved",
+        )
+        return
 
     with open(episode_path, "w", encoding="utf-8") as f:
         json.dump(episode, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
-    run('git config user.name "shm-bot"')
-    run('git config user.email "actions@users.noreply.github.com"')
-    run("git checkout main")
+    if not git_has_changes(episode_path):
+        print(f"No changes detected for {episode_path}. Marking issue approved and exiting.")
+        replace_issue_labels(
+            token=token,
+            repo=repo,
+            issue_number=issue_number,
+            remove_label="status: queued",
+            add_label="status: approved",
+        )
+        return
+
     run(f"git add {episode_path}")
     run(f'git commit -m "Create episode {slug} from issue #{issue_number}"')
     run("git push origin main")
