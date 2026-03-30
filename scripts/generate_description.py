@@ -3,13 +3,11 @@ import os
 import re
 import subprocess
 import sys
-import httpx
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
-from openai import OpenAI
-from openai import APIConnectionError, APIError, RateLimitError, APITimeoutError
 
 GITHUB_API = "https://api.github.com"
+
 
 def gh_api(method: str, url: str, token: str, data=None):
     headers = {
@@ -26,8 +24,10 @@ def gh_api(method: str, url: str, token: str, data=None):
         raw = resp.read().decode("utf-8")
         return json.loads(raw) if raw else {}
 
+
 def run(cmd: str):
     subprocess.check_call(cmd, shell=True)
+
 
 def parse_issue_form(body: str) -> dict:
     """
@@ -58,23 +58,31 @@ def parse_issue_form(body: str) -> dict:
         "notes": get("Notes for the description (optional)"),
     }
 
+
 def slugify(s: str) -> str:
     s = s.strip().lower()
     s = re.sub(r"[^a-z0-9]+", "-", s)
     s = re.sub(r"-+", "-", s).strip("-")
     return s
 
+
 def weekday_from_date(yyyy_mm_dd: str) -> str:
-    """
-    Returns weekday name (e.g. 'Wednesday') from YYYY-MM-DD.
-    """
     dt = datetime.strptime(yyyy_mm_dd, "%Y-%m-%d")
     return dt.strftime("%A")
 
+
+def load_description_template(episode_date: str) -> str:
+    weekday = weekday_from_date(episode_date)
+    path = f"descriptions/{weekday}-Description.txt"
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Missing description file: {path}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
 def build_episode_url(episode_date: str, mysteries: str) -> str:
-    """
-    Builds canonical episode URL slug.
-    """
     weekday = weekday_from_date(episode_date)
     mysteries_slug = slugify(mysteries)
 
@@ -85,76 +93,28 @@ def build_episode_url(episode_date: str, mysteries: str) -> str:
         f"daily-catholic-prayer"
     )
 
-def openai_chat_completion(oapi_key: str, prompt: str) -> str:
-    """
-    Uses the OpenAI Python SDK (Responses API).
-    Returns the model's plain text output.
-    """
 
-    model: str = "gpt-4.1-mini"
-    system: str = "You are a careful Catholic ministry copywriter. Follow all rules exactly."
-    temperature: float = 0.4
-    max_output_tokens: int = 600
-    timeout_seconds: int = 60
-    client = OpenAI(api_key=oapi_key, timeout=httpx.Timeout(connect=10.0, read=float(timeout_seconds),write=30.0,pool=10.0))
+def replace_issue_labels(token: str, repo: str, issue_number: int, remove_label: str, add_label: str):
+    issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
+    labels = [l["name"] for l in issue.get("labels", [])]
 
-    try:
-        resp = client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-        )
-        # The SDK exposes a convenience accessor for the concatenated text.
-        return (resp.output_text or "").strip() or _extract_text_fallback(resp)
+    new_labels = [x for x in labels if x != remove_label]
+    if add_label not in new_labels:
+        new_labels.append(add_label)
 
-    except APITimeoutError as e:
-        raise RuntimeError(f"OpenAI timeout after {timeout_seconds}s") from e
-    except RateLimitError as e:
-        raise RuntimeError(f"OpenAI rate limited: {e}") from e
-    except APIConnectionError as e:
-        raise RuntimeError(f"OpenAI connection error: {e}") from e
-    except APIError as e:
-        # Includes 4xx/5xx API responses surfaced by the SDK
-        raise RuntimeError(f"OpenAI API error: {e}") from e
+    gh_api("PUT", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}/labels", token, data=new_labels)
 
-
-def _extract_text_fallback(resp) -> str:
-    """
-    Fallback extractor in case output_text is empty/unavailable.
-    Walks response.output[*].content[*] for output_text/text blocks.
-    """
-    chunks: list[str] = []
-    for item in getattr(resp, "output", []) or []:
-        for part in getattr(item, "content", []) or []:
-            ptype = getattr(part, "type", None)
-            text = getattr(part, "text", None)
-            if ptype in ("output_text", "text") and text:
-                chunks.append(text)
-
-    text_out = "\n".join(chunks).strip()
-    if not text_out:
-        raise RuntimeError("OpenAI response missing text output.")
-    return text_out
 
 def main():
     token = os.environ["GH_TOKEN"]
-    openai_key = os.environ["OPENAI_API_KEY"]
     issue_number = int(os.environ["ISSUE_NUMBER"])
-    repo = os.environ["REPO"]  # owner/name
+    repo = os.environ["REPO"]
 
-    print("OPENAPIKEY present:",bool(openai_key), "len:",len(openai_key))
-    # Fetch issue
     issue = gh_api("GET", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}", token)
     issue_body = issue.get("body") or ""
-    issue_title = issue.get("title") or f"Issue {issue_number}"
 
     data = parse_issue_form(issue_body)
 
-    # Basic required fields
     if not data["episode_date"] or not data["episode_title"] or not data["mysteries"]:
         print("Issue is missing required fields. Ensure the Issue Form was used.")
         sys.exit(1)
@@ -163,51 +123,13 @@ def main():
         print("Missing publish_at (scheduled release time).")
         sys.exit(1)
 
-    # Create slug + paths
     date = data["episode_date"]
     slug = f"{date}-{slugify(data['mysteries'])}"
     episode_path = f"episodes/{slug}.json"
-    draft_path = f"drafts/{slug}.md"
 
-    # Build prompt (faith-safe: no prayer/scripture quoting, no promises, pastoral tone)
-    prompt = f"""
-TASK:
-Generate a single, unified, SEO-optimized description for an episode of the “St. Helena Ministries – Daily Rosary” podcast.
+    description = load_description_template(data["episode_date"])
+    episode_url = build_episode_url(data["episode_date"], data["mysteries"])
 
-HARD RULES (must follow):
-- Do NOT paraphrase, rewrite, summarize, or modify any prayers or Scripture.
-- Do NOT quote Scripture.
-- You MAY reference Scripture only by book, chapter, and verse (no quotations).
-- Do NOT invent theological explanations, promises, or spiritual outcomes.
-- Tone: pastoral, reverent, calm, invitational. No hype, no sales language, no emotional manipulation.
-- Output must be suitable for human review before publication.
-
-MUST INCLUDE (in one unified description):
-1) Reverent overview of the Daily Rosary episode
-2) Gentle, non-commercial “Support This Ministry” call-to-action
-3) Brief cross-promotion of the Divine Office podcast
-
-EPISODE CONTEXT:
-- Episode date: {data['episode_date']}
-- Episode title: {data['episode_title']}
-- Mysteries: {data['mysteries']}
-- Notes: {data['notes'] or "(none)"}
-
-LINKING / BRANDING:
-- If you include links, use placeholder text only (no raw URLs). Example: “Visit our website” or “Support this ministry”.
-- Keep it concise enough for podcast platforms (roughly 120–220 words).
-- End with a short, peaceful closing line (one sentence).
-
-Return ONLY the final description text, no headings, no bullet labels, no metadata.
-""".strip()
-
-    description = openai_chat_completion(openai_key, prompt)
-    episode_url = build_episode_url(
-        data["episode_date"],
-        data["mysteries"]
-    )
-    
-    # Prepare episode JSON (canonical store)
     episode = {
         "slug": slug,
         "show": "daily-rosary",
@@ -224,40 +146,28 @@ Return ONLY the final description text, no headings, no bullet labels, no metada
     }
 
     os.makedirs("episodes", exist_ok=True)
-    os.makedirs("drafts", exist_ok=True)
 
     with open(episode_path, "w", encoding="utf-8") as f:
         json.dump(episode, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
-    with open(draft_path, "w", encoding="utf-8") as f:
-        f.write(description.strip() + "\n")
-
-    # Create branch + commit
-    branch = f"draft/issue-{issue_number}-{slug}"
     run('git config user.name "shm-bot"')
     run('git config user.email "actions@users.noreply.github.com"')
-    run(f"git checkout -b {branch}")
-    run(f"git add {episode_path} {draft_path}")
-    run(f'git commit -m "Draft description for {slug} (issue #{issue_number})"')
-    run(f"git push --set-upstream origin {branch}")
+    run("git checkout main")
+    run(f"git add {episode_path}")
+    run(f'git commit -m "Create episode {slug} from issue #{issue_number}"')
+    run("git push origin main")
 
-    # Create PR
-    pr = gh_api("POST", f"{GITHUB_API}/repos/{repo}/pulls", token, data={
-        "title": f"Draft: {data['episode_title']} ({data['episode_date']})",
-        "head": branch,
-        "base": "main",
-        "body": f"Auto-generated draft from issue #{issue_number}.\n\nPlease review/edit before merging.",
-    })
-    pr_number = pr.get("number")
+    replace_issue_labels(
+        token=token,
+        repo=repo,
+        issue_number=issue_number,
+        remove_label="status: queued",
+        add_label="status: approved",
+    )
 
-    # Update labels: remove queued, add needs-review
-    labels = [l["name"] for l in issue.get("labels", [])]
-    new_labels = [x for x in labels if x != "status: queued"]
-    if "status: needs-review" not in new_labels:
-        new_labels.append("status: needs-review")
-    gh_api("PUT", f"{GITHUB_API}/repos/{repo}/issues/{issue_number}/labels", token, data=new_labels)
+    print(f"Created {episode_path} and marked issue #{issue_number} as approved.")
 
-    print(f"Created PR #{pr_number} for {slug}")
 
 if __name__ == "__main__":
     main()
