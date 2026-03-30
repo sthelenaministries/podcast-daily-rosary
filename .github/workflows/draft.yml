@@ -70,11 +70,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        if: steps.pick.outputs.issue_number != ''
-        run: |
-          python -m pip install --upgrade pip
-
       - name: Create episode and approve issue
         if: steps.pick.outputs.issue_number != ''
         env:
